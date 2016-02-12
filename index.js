@@ -1,6 +1,6 @@
 /**
 *
-* ScanReader.js
+* paper-art-eater
 * tnordberg@smm.org
 *
 */
@@ -42,7 +42,7 @@ exports.setOutputDirectory = function(path) {
 * and waits for complete files before reporting.
 *
 */
-exports.watchDirectoryForScans = function(directoryPath, digestionCallback) {
+exports.setWatchDirectory = function(directoryPath, digestionCallback) {
 
   var watchOptions = {ignored: /[\/\\]\./, persistent: true, ignoreInitial:true, awaitWriteFinish: true};
   var _this = this;
@@ -66,7 +66,7 @@ exports.watchDirectoryForScans = function(directoryPath, digestionCallback) {
 * regions in incoming scans
 *
 */
-exports.loadRegions = function(jsonPath) {
+exports.loadFormJSON = function(jsonPath) {
 
   var _this = this;
 
@@ -111,6 +111,8 @@ exports.loadRegions = function(jsonPath) {
           }
 
         }
+
+        console.log('key...',key);
 
       }
 
