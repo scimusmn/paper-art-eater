@@ -8,10 +8,15 @@
 var fs = require('fs');// FileSystem
 var path = require('path');
 var gm = require('gm').subClass({imageMagick: true}); // GraphicMagick/ImageMagick
+var GIFEncoder = require('gifencoder');
+var pngFileStream = require('png-file-stream');
 var jsonfile = require('jsonfile');
 var chokidar = require('chokidar'); // Directory observer.
+var sys = require('sys');
+var exec = require('child_process').exec;
 
 var TYPE_ART = 'art';
+var TYPE_ANIMATION = 'animation';
 var TYPE_STITCH = 'stitch';
 var TYPE_FILL = 'fill';
 
@@ -57,7 +62,6 @@ exports.setWatchDirectory = function(directoryPath, digestionCallback) {
 
 };
 
-
 /**
 *
 * Load Regions
@@ -92,6 +96,11 @@ exports.loadFormJSON = function(jsonPath) {
               _this.expectArt(key, e);
 
               break;
+            case TYPE_ANIMATION:
+
+              _this.expectAnimation(key, e);
+
+              break;
             case TYPE_FILL:
 
               _this.expectFillBox(key, e);
@@ -112,7 +121,7 @@ exports.loadFormJSON = function(jsonPath) {
 
         }
 
-        console.log('key...',key);
+        console.log('key...', key);
 
       }
 
@@ -131,16 +140,64 @@ exports.loadFormJSON = function(jsonPath) {
 */
 exports.expectArt = function(id, region) {
 
-  if (region.trim === undefined || region.trim === null) {
-    region.trim = false;
-  }
+  defaults(region, {  trim:false,
+                      transparent:true,
+                      exportScale: '100%',
+                    });
 
-  if (region.transparent === undefined || region.transparent === null) {
-    region.transparent = true;
-  }
+  region.id = id;
+  expected.push(region);
 
-  if (region.exportScale === undefined || region.exportScale === null) {
-    region.exportScale = '100%';
+};
+
+/**
+*
+* Expect Animation.
+*
+* Pass in a grid with columns and rows.
+* We extract each image then layer into
+* a sequenced gif.
+*
+*/
+exports.expectAnimation = function(id, region) {
+
+  defaults(region, { exportScale:'100%' });
+
+  if (region.rectArray === undefined || region.rectArray === null) {
+
+    // No rect array provided. Create from grid.
+
+    defaults(region, { cols:1, rows:1, padding:5 });
+
+    var columnWidth = region.w / region.cols;
+    var rowHeight = region.h / region.rows;
+    var index = 0;
+    var rectArray = [];
+
+    for (var row = 0; row < region.rows; row++) {
+      for (var col = 0; col < region.cols; col++) {
+
+        // Trick to clone simple JS object.
+        var cellRegion = (JSON.parse(JSON.stringify(region)));
+
+        cellRegion.id = id + '_frame_' + pad(index, 3);
+        cellRegion.x = region.x + (col * columnWidth) + region.padding;
+        cellRegion.y = region.y + (row * rowHeight) + region.padding;
+        cellRegion.w = columnWidth - (region.padding * 2);
+        cellRegion.h = rowHeight - (region.padding * 2);
+
+        // TODO - incorporate padding
+
+        rectArray.push(cellRegion);
+
+        index++;
+
+      };
+
+    };
+
+    region.rectArray = rectArray;
+
   }
 
   region.id = id;
@@ -159,9 +216,7 @@ exports.expectArt = function(id, region) {
 */
 exports.expectStitch = function(id, region) {
 
-  if (region.exportScale === undefined || region.exportScale === null) {
-    region.exportScale = '100%';
-  }
+  defaults(region, {  exportScale:'100%' });
 
   region.id = id;
   expected.push(region);
@@ -180,13 +235,9 @@ exports.expectStitch = function(id, region) {
 */
 exports.expectFillBox = function(id, region) {
 
-  if (region.cols === undefined || region.cols === null) {
-    region.cols = 1;
-  }
-
-  if (region.rows === undefined || region.rows === null) {
-    region.rows = 1;
-  }
+  defaults(region, {  cols:1,
+                      rows:1,
+                    });
 
   if (region.cols === 1 && region.rows === 1) {
 
@@ -285,13 +336,13 @@ exports.digest = function(srcPath, completeCallback, skipDebug) {
 * Cut out and process art and fill-boxes.
 *
 */
-var processRegions = function(imgPath, completeCallback) {
+var processRegions = function(srcPath, completeCallback) {
 
   numProcesses = expected.length;
   results = {};
   resultsCallback = completeCallback;
 
-  processNextRegion(imgPath);
+  processNextRegion(srcPath);
 
 };
 
@@ -300,7 +351,7 @@ var processRegions = function(imgPath, completeCallback) {
 * Process next region
 *
 */
-var processNextRegion = function(imgPath) {
+var processNextRegion = function(srcPath) {
 
   var e = expected[expected.length - numProcesses];
 
@@ -308,7 +359,41 @@ var processNextRegion = function(imgPath) {
 
     var outPath = digestPath + e.id + '.png';
 
-    getArt(imgPath, outPath, e, processComplete);
+    getArt(srcPath, outPath, e, processComplete);
+
+  } else if (e.type === TYPE_ANIMATION) {
+
+    e.frameCount = e.rectArray.length;
+
+    console.log('PROCESS TYPE ANIMATION');
+
+    // Make sequence directory for frames
+    var sequencePath = digestPath + 'sequence-' + e.id + '/';
+    if (!fs.existsSync(sequencePath)) {
+      fs.mkdirSync(sequencePath);
+    }
+
+    e.sequencePath = sequencePath;
+
+    for (var i = 0; i < e.rectArray.length; i++) {
+
+      var rect = e.rectArray[i];
+      var framePath = sequencePath + rect.id + '.png';
+      rect.outPath = framePath;
+
+      getArt(srcPath, framePath, rect, function(rectRegion, outPath, srcPath) {
+
+        e.frameCount--;
+
+        if (e.frameCount <= 0) {
+
+          createAnimationSequence(e, srcPath);
+
+        }
+
+      });
+
+    };
 
   } else if (e.type === TYPE_FILL) {
 
@@ -341,7 +426,7 @@ var processNextRegion = function(imgPath) {
                   isFilled = true;
                 }
 
-                processComplete(e.id, isFilled, imgPath);
+                processComplete(e, isFilled, srcPath);
 
               }
             });
@@ -359,7 +444,7 @@ var processNextRegion = function(imgPath) {
 
       var r = e.rectArray[i];
 
-      gm(imgPath)
+      gm(srcPath)
         .crop(r.w, r.h, r.x, r.y)
         .whiteThreshold('90%') // Make near-whites white
         .transparent('#ffffff')
@@ -370,7 +455,7 @@ var processNextRegion = function(imgPath) {
             throw err;
           } else {
 
-            stitchSectionReady(e, imgPath);
+            stitchSectionReady(e, srcPath);
 
           }
 
@@ -422,9 +507,35 @@ var getArt = function(srcPath, outPath, region, callback) {
     if (err) {
       throw err;
     } else {
-      callback(e.id, outPath, srcPath);
+      callback(e, outPath, srcPath);
     }
   });
+
+};
+
+/**
+*
+* Create Animation Sequence
+*
+*/
+var createAnimationSequence = function(region, srcPath) {
+
+  console.log('createAnimationSequence');
+
+  var animationPath = digestPath + region.id + '.gif';
+
+  // ImageMagick command to convert into preview gif
+  var execString = 'convert -dispose previous -page +0+0 -delay 6 ';
+  if (region.transparentBackground && region.transparentBackground === true) execString += '-transparent white ';
+  if (!region.looping || region.looping === true) execString += '-loop 0 ';
+
+  execString +=  '' + region.sequencePath + '*.png' + ' ' + animationPath;
+
+  exec(execString);
+
+  // TODO: Export sprite atlas that can be used in game engines...
+
+  processComplete(region, animationPath, srcPath);
 
 };
 
@@ -479,7 +590,7 @@ var appendStitchImages = function(region, imgPath) {
             .trim()
               .write(concatPath, function(err) {
 
-                processComplete(region.id, concatPath, imgPath);
+                processComplete(region, concatPath, imgPath);
 
               });
         }
@@ -494,9 +605,11 @@ var appendStitchImages = function(region, imgPath) {
 * Call this after each process completes.
 *
 */
-var processComplete = function(id, result, srcPath) {
+var processComplete = function(region, result, srcPath) {
 
-  results[id] = result;
+  console.log('processComplete: srcPath:', srcPath);
+
+  results[region.id] = result;
 
   numProcesses--;
 
@@ -590,7 +703,7 @@ var outputDebug = function(srcPath, completeCallback) {
       // Fillbox = purple
       color = 'rgba(255,0,255,0.3)';
 
-    } else if (e.type === TYPE_STITCH) {
+    } else if (e.type === TYPE_ANIMATION || e.type === TYPE_STITCH) {
 
       // Stitch = green
       color = 'rgba(0,180,0,0.5)';
@@ -633,4 +746,35 @@ var outputDebug = function(srcPath, completeCallback) {
     });
 
 };
+
+/**
+*
+* Defaults Util function
+* Sets any null params of object to default values
+*
+*/
+var defaults = function(obj, defaults) {
+
+  for (var param in defaults) {
+    if (defaults.hasOwnProperty(param)) {
+      if (obj[param] === undefined || obj[param] === null) {
+        console.log('Setting default : ', param);
+        obj[param] = defaults[param];
+      }
+    }
+  }
+
+  return obj;
+
+};
+
+/**
+*
+* Pad Zeros Util function
+*
+*/
+function pad(num, size) {
+  var s = '00000000' + num;
+  return s.substr(s.length - size);
+}
 

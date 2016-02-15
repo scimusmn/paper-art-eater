@@ -1,7 +1,7 @@
 var artEater = require('./index.js');
 
 // Set up Art Reader
-var jsonFormPath = './public/forms/24-frame-grid.json';
+var jsonFormPath = './public/forms/double-12-frame.json';
 var outputDirectory = './public/output/';
 var watchDirectory = __dirname + '/public/scans/';
 
@@ -20,11 +20,13 @@ function onDigestionComplete(results) {
   console.log('\nDigestion complete ... <{ BURP! }');
   console.log(results);
 
-  // TODO: Open file from finder?
-  var filePath = results.myAnimation;
-  var sys = require('sys');
-  var exec = require('child_process').exec;
+  // // Open preview from finder.
+  // var sys = require('sys');
+  // var exec = require('child_process').exec;
 
-  exec('open' + ' ' + filePath);
+  // setTimeout(function() {
+  //   console.log('open' + ' ' + results.myAnimation);
+  //   exec('open' + ' ' + results.myAnimation);
+  // }, 1500);
 
 }
