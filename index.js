@@ -133,6 +133,18 @@ exports.loadFormJSON = function(jsonPath) {
 
 /**
 *
+* Clear
+* Resets all expections.
+*
+*/
+exports.clear = function(path) {
+
+  expected = [];
+
+};
+
+/**
+*
 * Expect Art in specified region.
 *
 * Trim whitespace and return png.
@@ -140,7 +152,8 @@ exports.loadFormJSON = function(jsonPath) {
 */
 exports.expectArt = function(id, region) {
 
-  defaults(region, {  trim:false,
+  defaults(region, {  type:TYPE_ART,
+                      trim:false,
                       transparent:true,
                       exportScale: '100%',
                     });
@@ -161,13 +174,19 @@ exports.expectArt = function(id, region) {
 */
 exports.expectAnimation = function(id, region) {
 
-  defaults(region, { exportScale:'100%' });
+  defaults(region, {  type:TYPE_ANIMATION,
+                      exportScale:'100%',
+                      transparentBackground:false,
+                      padding:5,
+                      looping:true,
+                      fps: 24,
+                    });
 
   if (region.rectArray === undefined || region.rectArray === null) {
 
     // No rect array provided. Create from grid.
 
-    defaults(region, { cols:1, rows:1, padding:5 });
+    defaults(region, { cols:1, rows:1 });
 
     var columnWidth = region.w / region.cols;
     var rowHeight = region.h / region.rows;
@@ -216,7 +235,7 @@ exports.expectAnimation = function(id, region) {
 */
 exports.expectStitch = function(id, region) {
 
-  defaults(region, {  exportScale:'100%' });
+  defaults(region, {  type:TYPE_STITCH, exportScale:'100%' });
 
   region.id = id;
   expected.push(region);
@@ -235,7 +254,8 @@ exports.expectStitch = function(id, region) {
 */
 exports.expectFillBox = function(id, region) {
 
-  defaults(region, {  cols:1,
+  defaults(region, {  type:TYPE_FILL,
+                      cols:1,
                       rows:1,
                     });
 
@@ -399,7 +419,7 @@ var processNextRegion = function(srcPath) {
 
     // Scale down to a 1x1 pixel,
     // averaging all color data.
-    gm(imgPath)
+    gm(srcPath)
       .crop(e.w, e.h, e.x, e.y)
       .shave(10, 10, 10)
       .scale(1, 1)
@@ -524,16 +544,22 @@ var createAnimationSequence = function(region, srcPath) {
 
   var animationPath = digestPath + region.id + '.gif';
 
+  var frameDelay = Math.round(100 / region.fps);
+
   // ImageMagick command to convert into preview gif
-  var execString = 'convert -dispose previous -page +0+0 -delay 6 ';
-  if (region.transparentBackground && region.transparentBackground === true) execString += '-transparent white ';
-  if (!region.looping || region.looping === true) execString += '-loop 0 ';
+  var execString = 'convert -dispose previous -page +0+0 -delay ' + frameDelay + ' ';
+  if (region.transparentBackground === true) execString += '-transparent white ';
+  if (region.looping === true) {
+    execString += '-loop 0 ';
+  } else {
+    execString += '-loop 1 ';
+  }
 
   execString +=  '' + region.sequencePath + '*.png' + ' ' + animationPath;
 
   exec(execString);
 
-  // TODO: Export sprite atlas that can be used in game engines...
+  // TODO: Possibly export sprite atlas that can be used in game engines...
 
   processComplete(region, animationPath, srcPath);
 
@@ -544,13 +570,13 @@ var createAnimationSequence = function(region, srcPath) {
 * Stitch section ready
 *
 */
-var stitchSectionReady = function(region, imgPath) {
+var stitchSectionReady = function(region, srcPath) {
 
   region.stitchCount--;
 
   if (region.stitchCount <= 0) {
 
-    appendStitchImages(region, imgPath);
+    appendStitchImages(region, srcPath);
 
   }
 
@@ -561,7 +587,7 @@ var stitchSectionReady = function(region, imgPath) {
 * Append stitch images
 *
 */
-var appendStitchImages = function(region, imgPath) {
+var appendStitchImages = function(region, srcPath) {
 
   var concatPath = digestPath + region.id + '.png';
 
@@ -590,7 +616,7 @@ var appendStitchImages = function(region, imgPath) {
             .trim()
               .write(concatPath, function(err) {
 
-                processComplete(region, concatPath, imgPath);
+                processComplete(region, concatPath, srcPath);
 
               });
         }
@@ -606,8 +632,6 @@ var appendStitchImages = function(region, imgPath) {
 *
 */
 var processComplete = function(region, result, srcPath) {
-
-  console.log('processComplete: srcPath:', srcPath);
 
   results[region.id] = result;
 
@@ -758,7 +782,7 @@ var defaults = function(obj, defaults) {
   for (var param in defaults) {
     if (defaults.hasOwnProperty(param)) {
       if (obj[param] === undefined || obj[param] === null) {
-        console.log('Setting default : ', param);
+        console.log('Setting default :', param);
         obj[param] = defaults[param];
       }
     }
