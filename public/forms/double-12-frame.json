@@ -1,6 +1,6 @@
 {
 
-  "spring": {
+  "animation-A": {
     "type": "animation",
     "exportScale": "100%",
     "x": 235,
@@ -9,10 +9,10 @@
     "h": 600,
     "cols": 4,
     "rows": 3,
-    "padding": 8
+    "padding": 6
   },
 
-  "flame": {
+  "animation-B": {
     "type": "animation",
     "exportScale": "100%",
     "x": 235,
@@ -21,7 +21,7 @@
     "h": 600,
     "cols": 4,
     "rows": 3,
-    "padding": 8
+    "padding": 6
   }
 
 }

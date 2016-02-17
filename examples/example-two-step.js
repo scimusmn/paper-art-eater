@@ -1,4 +1,4 @@
-var artEater = require('./index.js');
+var artEater = require('../index.js');
 
 var scanPath = './public/scans/options-scan-3.png';
 

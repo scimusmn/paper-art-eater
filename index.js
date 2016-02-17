@@ -250,6 +250,8 @@ exports.expectStitch = function(id, region) {
 * If you provide columns and rows,
 * the box will be split into a grid
 * and you will returned an array of booleans.
+* If you want hex colors back instead of
+* booleans, set returnColors flag to true.
 *
 */
 exports.expectFillBox = function(id, region) {
@@ -257,6 +259,8 @@ exports.expectFillBox = function(id, region) {
   defaults(region, {  type:TYPE_FILL,
                       cols:1,
                       rows:1,
+                      returnColors:false,
+                      padding:0,
                     });
 
   if (region.cols === 1 && region.rows === 1) {
@@ -266,21 +270,21 @@ exports.expectFillBox = function(id, region) {
 
   } else {
 
-    var colWidth = region.w / region.cols;
+    var columnWidth = region.w / region.cols;
     var rowHeight = region.h / region.rows;
     var index = 0;
 
-    for (var r = 0; r < region.rows; r++) {
-      for (var c = 0; c < region.cols; c++) {
+    for (var row = 0; row < region.rows; row++) {
+      for (var col = 0; col < region.cols; col++) {
 
         // Trick to clone simple JS object.
         var cellRegion = (JSON.parse(JSON.stringify(region)));
 
         cellRegion.id = FGRIDKEY + '_' + id + '_' + index;
-        cellRegion.x = region.x + (c * colWidth);
-        cellRegion.y = region.y + (r * rowHeight);
-        cellRegion.w = colWidth;
-        cellRegion.h = rowHeight;
+        cellRegion.x = region.x + (col * columnWidth) + region.padding;
+        cellRegion.y = region.y + (row * rowHeight) + region.padding;
+        cellRegion.w = columnWidth - (region.padding * 2);
+        cellRegion.h = rowHeight - (region.padding * 2);
 
         expected.push(cellRegion);
 
@@ -385,8 +389,6 @@ var processNextRegion = function(srcPath) {
 
     e.frameCount = e.rectArray.length;
 
-    console.log('PROCESS TYPE ANIMATION');
-
     // Make sequence directory for frames
     var sequencePath = digestPath + 'sequence-' + e.id + '/';
     if (!fs.existsSync(sequencePath)) {
@@ -436,17 +438,27 @@ var processNextRegion = function(srcPath) {
                 throw err;
               } else {
 
-                // If all three colors are above 80% whiteness
-                // assume the square has not been filled.
-                var rgb = info.split(','); // 'rrr,ggg,bbb' -> [r, g, b]
-                var isFilled;
-                if (rgb[0] > 200 && rgb[1] > 200 && rgb[2] > 200) {
-                  isFilled = false;
-                } else {
-                  isFilled = true;
-                }
+                if (e.returnColors === true) {
 
-                processComplete(e, isFilled, srcPath);
+                  // Return as RGB color
+                  processComplete(e, info, srcPath);
+
+                } else {
+                  // Return as boolean (isFilled)
+
+                  // If all three colors are above 80% whiteness
+                  // assume the square has not been filled.
+                  var rgb = info.split(','); // 'rrr,ggg,bbb' -> [r, g, b]
+                  var isFilled;
+                  if (rgb[0] > 200 && rgb[1] > 200 && rgb[2] > 200) {
+                    isFilled = false;
+                  } else {
+                    isFilled = true;
+                  }
+
+                  processComplete(e, isFilled, srcPath);
+
+                }
 
               }
             });
@@ -640,6 +652,9 @@ var processComplete = function(region, result, srcPath) {
   if (numProcesses <= 0) {
 
     results = cleanResults(results);
+
+    // Adding digestPath can be useful for next steps
+    if (!results.digestPath) results.digestPath = digestPath;
 
     resultsCallback(results);
 
