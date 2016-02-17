@@ -1,17 +1,31 @@
 {
   "name": "paper-art-eater",
   "version": "1.0.0",
-  "description": "ART EATER",
+  "description": "PAPER ART EATER - Quickly integrate hand-drawn art into exhibits.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "keywords": [
+    "scan",
+    "paper",
+    "form",
+    "art",
+    "drawing",
+    "animation",
+    "gif",
+    "imagemagick",
+    "graphicsmagick"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scimusmn/paper-art-eater.git"
+  },
+  "author": "tnordberg@smm.org",
   "license": "ISC",
   "dependencies": {
     "chokidar": "^1.4.1",
     "jsonfile": "^2.2.3",
-    "scp": "0.0.3",
-    "scp2": "^0.2.2"
+    "gm": "^1.21.1"
   }
 }

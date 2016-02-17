@@ -1,0 +1,15 @@
+{
+
+  "myAnimation": {
+    "type": "animation",
+    "exportScale": "100%",
+    "x": 172,
+    "y": 168,
+    "w": 930,
+    "h": 692,
+    "cols": 4,
+    "rows": 3,
+    "padding": 10
+  }
+
+}

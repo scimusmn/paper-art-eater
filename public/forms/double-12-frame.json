@@ -1,0 +1,27 @@
+{
+
+  "animation-A": {
+    "type": "animation",
+    "exportScale": "100%",
+    "x": 235,
+    "y": 181,
+    "w": 806,
+    "h": 600,
+    "cols": 4,
+    "rows": 3,
+    "padding": 6
+  },
+
+  "animation-B": {
+    "type": "animation",
+    "exportScale": "100%",
+    "x": 235,
+    "y": 915,
+    "w": 806,
+    "h": 600,
+    "cols": 4,
+    "rows": 3,
+    "padding": 6
+  }
+
+}
